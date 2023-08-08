@@ -1,12 +1,12 @@
 from contextlib import ExitStack
 from time import sleep
 
-from nisystemlink.clients.tag import DataType, TagData, TagManager, TagValueReader
+import nisystemlink as sl
 
 SIMULATE_EXTERNAL_TAG_CHANGES = True
 
 
-def on_tag_changed(tag: TagData, reader: TagValueReader) -> None:
+def on_tag_changed(tag: sl.TagData, reader: sl.TagValueReader) -> None:
     """Callback for tag_changed events."""
     path = tag.path
     data_type = tag.data_type.name
@@ -23,9 +23,9 @@ def on_tag_changed(tag: TagData, reader: TagValueReader) -> None:
     print(f'Tag changed: "{path}" = {value} ({data_type})')
 
 
-mgr = TagManager()
+mgr = sl.TagManager()
 if SIMULATE_EXTERNAL_TAG_CHANGES:
-    mgr.open("MyTags.Example Tag", DataType.DOUBLE, create=True)
+    mgr.open("MyTags.Example Tag", sl.TagDataType.DOUBLE, create=True)
     writer = mgr.create_writer(buffer_size=1)
 
 with ExitStack() as stack:
@@ -59,7 +59,7 @@ with ExitStack() as stack:
             while True:
                 sleep(1)
                 if SIMULATE_EXTERNAL_TAG_CHANGES:
-                    writer.write("MyTags.Example Tag", DataType.DOUBLE, i)
+                    writer.write("MyTags.Example Tag", sl.TagDataType.DOUBLE, i)
                     i += 1
         except KeyboardInterrupt:
             pass

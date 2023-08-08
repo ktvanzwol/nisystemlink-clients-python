@@ -1,28 +1,21 @@
 from shutil import copyfileobj
 
-from nisystemlink.clients.dataframe import DataFrameClient
-from nisystemlink.clients.dataframe.models import (
-    ColumnFilter,
-    ColumnOrderBy,
-    ExportFormat,
-    ExportTableDataRequest,
-    FilterOperation,
-)
+import nisystemlink as sl
 
-client = DataFrameClient()
+client = sl.DataFrameClient()
 
 # List a table
 response = client.list_tables(take=1)
 table = response.tables[0]
 
 # Export table data with query options
-request = ExportTableDataRequest(
+request = sl.ExportTableDataRequest(
     columns=["col1"],
-    order_by=[ColumnOrderBy(column="col2", descending=True)],
+    order_by=[sl.ColumnOrderBy(column="col2", descending=True)],
     filters=[
-        ColumnFilter(column="col1", operation=FilterOperation.NotEquals, value="0")
+        sl.ColumnFilter(column="col1", operation=sl.FilterOperation.NotEquals, value="0")
     ],
-    response_format=ExportFormat.CSV,
+    response_format=sl.ExportFormat.CSV,
 )
 
 data = client.export_table_data(id=table.id, query=request)

@@ -1,9 +1,9 @@
 from datetime import timedelta
 
-from nisystemlink.clients.tag import DataType, TagManager
+import nisystemlink as sl
 
-mgr = TagManager()
-tag = mgr.open("MyTags.Example Tag", DataType.DOUBLE, create=True)
+mgr = sl.TagManager()
+tag = mgr.open("MyTags.Example Tag", sl.TagDataType.DOUBLE, create=True)
 
 with mgr.create_writer(buffer_size=10, max_buffer_time=timedelta(seconds=3)) as writer:
     writer.write(tag.path, tag.data_type, 3.5)

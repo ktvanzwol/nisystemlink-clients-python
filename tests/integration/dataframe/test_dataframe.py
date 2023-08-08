@@ -4,52 +4,53 @@ from typing import List, Optional
 
 import pytest  # type: ignore
 import responses
-from nisystemlink.clients.core import ApiException
-from nisystemlink.clients.dataframe import DataFrameClient
-from nisystemlink.clients.dataframe.models import (
-    AppendTableDataRequest,
-    Column,
-    ColumnFilter,
-    ColumnMetadataPatch,
-    ColumnOrderBy,
-    ColumnType,
-    CreateTableRequest,
-    DataFrame,
-    DataType,
-    DecimationMethod,
-    DecimationOptions,
-    ExportFormat,
-    ExportTableDataRequest,
-    FilterOperation,
-    ModifyTableRequest,
-    ModifyTablesRequest,
-    QueryDecimatedDataRequest,
-    QueryTableDataRequest,
-    QueryTablesRequest,
-    TableMetadataModification,
-)
+# from nisystemlink.clients.core import ApiException
+# from nisystemlink.clients.dataframe import DataFrameClient
+# from nisystemlink.clients.dataframe.models import (
+#     AppendTableDataRequest,
+#     Column,
+#     ColumnFilter,
+#     ColumnMetadataPatch,
+#     ColumnOrderBy,
+#     ColumnType,
+#     CreateTableRequest,
+#     DataFrame,
+#     DataType,
+#     DecimationMethod,
+#     DecimationOptions,
+#     ExportFormat,
+#     ExportTableDataRequest,
+#     FilterOperation,
+#     ModifyTableRequest,
+#     ModifyTablesRequest,
+#     QueryDecimatedDataRequest,
+#     QueryTableDataRequest,
+#     QueryTablesRequest,
+#     TableMetadataModification,
+# )
+import nisystemlink as sl
 from responses import matchers
 
 
-int_index_column = Column(
-    name="index", data_type=DataType.Int32, column_type=ColumnType.Index
+int_index_column = sl.Column(
+    name="index", data_type=sl.DataFrameDataType.Int32, column_type=sl.ColumnType.Index
 )
 
-basic_table_model = CreateTableRequest(columns=[int_index_column])
+basic_table_model = sl.CreateTableRequest(columns=[int_index_column])
 
 
 @pytest.fixture(scope="class")
 def client(enterprise_config):
     """Fixture to create a DataFrameClient instance."""
-    return DataFrameClient(enterprise_config)
+    return sl.DataFrameClient(enterprise_config)
 
 
 @pytest.fixture(scope="class")
-def create_table(client: DataFrameClient):
+def create_table(client: sl.DataFrameClient):
     """Fixture to return a factory that creates tables."""
     tables = []
 
-    def _create_table(table: Optional[CreateTableRequest] = None) -> str:
+    def _create_table(table: Optional[sl.CreateTableRequest] = None) -> str:
         id = client.create_table(table or basic_table_model)
         tables.append(id)
         return id
@@ -66,15 +67,15 @@ def test_tables(create_table):
     for i in range(1, 4):
         ids.append(
             create_table(
-                CreateTableRequest(
+                sl.CreateTableRequest(
                     columns=[
-                        Column(
+                        sl.Column(
                             name="time",
-                            data_type=DataType.Timestamp,
-                            column_type=ColumnType.Index,
+                            data_type=sl.DataFrameDataType.Timestamp,
+                            column_type=sl.ColumnType.Index,
                             properties={"cat": "meow"},
                         ),
-                        Column(name="value", data_type=DataType.Int32),
+                        sl.Column(name="value", data_type=sl.DataFrameDataType.Int32),
                     ],
                     name=f"Python API test table {i} (delete me)",
                     properties={"dog": "woof"},
@@ -93,28 +94,28 @@ class TestDataFrame:
         assert len(response.dict()) != 0
 
     def test__create_table__metadata_is_correct(
-        self, client: DataFrameClient, test_tables: List[str]
+        self, client: sl.DataFrameClient, test_tables: List[str]
     ):
         table_metadata = client.get_table_metadata(test_tables[0])
 
         assert table_metadata.name == "Python API test table 1 (delete me)"
         assert table_metadata.properties == {"dog": "woof"}
         assert table_metadata.columns == [
-            Column(
+            sl.Column(
                 name="time",
-                data_type=DataType.Timestamp,
-                column_type=ColumnType.Index,
+                data_type=sl.DataFrameDataType.Timestamp,
+                column_type=sl.ColumnType.Index,
                 properties={"cat": "meow"},
             ),
-            Column(
+            sl.Column(
                 name="value",
-                data_type=DataType.Int32,
-                column_type=ColumnType.Normal,
+                data_type=sl.DataFrameDataType.Int32,
+                column_type=sl.ColumnType.Normal,
                 properties={},
             ),
         ]
 
-    def test__get_table__correct_timestamp(self, client: DataFrameClient, create_table):
+    def test__get_table__correct_timestamp(self, client: sl.DataFrameClient, create_table):
         id = create_table(basic_table_model)
         table = client.get_table_metadata(id)
 
@@ -122,12 +123,12 @@ class TestDataFrame:
         # Assert that timestamp is within 10 seconds of now
         assert table.created_at.timestamp() == pytest.approx(now, abs=10)
 
-    def test__get_table_invalid_id__raises(self, client: DataFrameClient):
-        with pytest.raises(ApiException, match="invalid table ID"):
+    def test__get_table_invalid_id__raises(self, client: sl.DataFrameClient):
+        with pytest.raises(sl.ApiException, match="invalid table ID"):
             client.get_table_metadata("invalid_id")
 
     def test__list_tables__returns(
-        self, client: DataFrameClient, test_tables: List[str]
+        self, client: sl.DataFrameClient, test_tables: List[str]
     ):
         first_page = client.list_tables(
             take=2,
@@ -151,9 +152,9 @@ class TestDataFrame:
         assert second_page.continuation_token is None
 
     def test__query_tables__returns(
-        self, client: DataFrameClient, test_tables: List[str]
+        self, client: sl.DataFrameClient, test_tables: List[str]
     ):
-        query = QueryTablesRequest(
+        query = sl.QueryTablesRequest(
             filter="""(id == @0 or id == @1 or id == @2)
                 and createdWithin <= RelativeTime.CurrentWeek
                 and supportsAppend == @3 and rowCount < @4""",
@@ -175,17 +176,17 @@ class TestDataFrame:
         assert len(second_page.tables) == 1
         assert second_page.continuation_token is None
 
-    def test__modify_table__returns(self, client: DataFrameClient, create_table):
+    def test__modify_table__returns(self, client: sl.DataFrameClient, create_table):
         id = create_table(basic_table_model)
 
         client.modify_table(
             id,
-            ModifyTableRequest(
+            sl.ModifyTableRequest(
                 metadata_revision=2,
                 name="Modified table",
                 properties={"cow": "moo"},
                 columns=[
-                    ColumnMetadataPatch(name="index", properties={"sheep": "baa"})
+                    sl.ColumnMetadataPatch(name="index", properties={"sheep": "baa"})
                 ],
             ),
         )
@@ -196,7 +197,7 @@ class TestDataFrame:
         assert table.properties == {"cow": "moo"}
         assert table.columns[0].properties == {"sheep": "baa"}
 
-        client.modify_table(id, ModifyTableRequest(properties={"bee": "buzz"}))
+        client.modify_table(id, sl.ModifyTableRequest(properties={"bee": "buzz"}))
         table = client.get_table_metadata(id)
 
         assert table.properties == {"cow": "moo", "bee": "buzz"}
@@ -204,11 +205,11 @@ class TestDataFrame:
 
         client.modify_table(
             id,
-            ModifyTableRequest(
+            sl.ModifyTableRequest(
                 metadata_revision=4,
                 name=None,
                 properties={"cow": None},
-                columns=[ColumnMetadataPatch(name="index", properties={"sheep": None})],
+                columns=[sl.ColumnMetadataPatch(name="index", properties={"sheep": None})],
             ),
         )
         table = client.get_table_metadata(id)
@@ -218,24 +219,24 @@ class TestDataFrame:
         assert table.properties == {"bee": "buzz"}
         assert table.columns[0].properties == {}
 
-    def test__delete_table__deletes(self, client: DataFrameClient):
+    def test__delete_table__deletes(self, client: sl.DataFrameClient):
         id = client.create_table(
             basic_table_model
         )  # Don't use fixture to avoid deleting the table twice
 
         assert client.delete_table(id) is None
 
-        with pytest.raises(ApiException, match="404 Not Found"):
+        with pytest.raises(sl.ApiException, match="404 Not Found"):
             client.get_table_metadata(id)
 
-    def test__delete_tables__deletes(self, client: DataFrameClient):
+    def test__delete_tables__deletes(self, client: sl.DataFrameClient):
         ids = [client.create_table(basic_table_model) for _ in range(3)]
 
         assert client.delete_tables(ids) is None
 
         assert client.list_tables(id=ids).tables == []
 
-    def test__delete_tables__returns_partial_success(self, client: DataFrameClient):
+    def test__delete_tables__returns_partial_success(self, client: sl.DataFrameClient):
         id = client.create_table(basic_table_model)
 
         response = client.delete_tables([id, "invalid_id"])
@@ -246,76 +247,76 @@ class TestDataFrame:
         assert len(response.error.inner_errors) == 1
 
     def test__modify_tables__modifies_tables(
-        self, client: DataFrameClient, create_table
+        self, client: sl.DataFrameClient, create_table
     ):
         ids = [create_table(basic_table_model) for _ in range(3)]
 
         updates = [
-            TableMetadataModification(
+            sl.TableMetadataModification(
                 id=id, name="Modified table", properties={"duck": "quack"}
             )
             for id in ids
         ]
 
-        assert client.modify_tables(ModifyTablesRequest(tables=updates)) is None
+        assert client.modify_tables(sl.ModifyTablesRequest(tables=updates)) is None
 
         for table in client.list_tables(id=ids).tables:
             assert table.name == "Modified table"
             assert table.properties == {"duck": "quack"}
 
         updates = [
-            TableMetadataModification(id=id, properties={"pig": "oink"}) for id in ids
+            sl.TableMetadataModification(id=id, properties={"pig": "oink"}) for id in ids
         ]
 
         assert (
-            client.modify_tables(ModifyTablesRequest(tables=updates, replace=True))
+            client.modify_tables(sl.ModifyTablesRequest(tables=updates, replace=True))
             is None
         )
 
         for table in client.list_tables(id=ids).tables:
             assert table.properties == {"pig": "oink"}
 
-    def test__modify_tables__returns_partial_success(self, client: DataFrameClient):
+    def test__modify_tables__returns_partial_success(self, client: sl.DataFrameClient):
         id = client.create_table(basic_table_model)
 
         updates = [
-            TableMetadataModification(id=id, name="Modified table")
+            sl.TableMetadataModification(id=id, name="Modified table")
             for id in [id, "invalid_id"]
         ]
 
-        response = client.modify_tables(ModifyTablesRequest(tables=updates))
+        response = client.modify_tables(sl.ModifyTablesRequest(tables=updates))
 
         assert response is not None
         assert response.modified_table_ids == [id]
         assert response.failed_modifications == [updates[1]]
         assert len(response.error.inner_errors) == 1
 
-    def test__read_and_write_data__works(self, client: DataFrameClient, create_table):
+    def test__read_and_write_data__works(self, client: sl.DataFrameClient, create_table):
         id = create_table(
-            CreateTableRequest(
+            sl.CreateTableRequest(
                 columns=[
                     int_index_column,
-                    Column(
+                    sl.Column(
                         name="value",
-                        data_type=DataType.Float64,
-                        column_type=ColumnType.Nullable,
+                        data_type=sl.DataFrameDataType.Float64,
+                        column_type=sl.ColumnType.Nullable,
                     ),
-                    Column(
+                    sl.Column(
                         name="ignore_me",
-                        data_type=DataType.Bool,
-                        column_type=ColumnType.Nullable,
+                        data_type=sl.DataFrameDataType.Bool,
+                        column_type=sl.ColumnType.Nullable,
                     ),
                 ]
             )
         )
 
-        frame = DataFrame(
+        frame = sl.DataFrame(
             columns=["index", "value", "ignore_me"],
             data=[["1", "3.3", "True"], ["2", None, "False"], ["3", "1.1", "True"]],
         )
 
         client.append_table_data(
-            id, AppendTableDataRequest(frame=frame, end_of_data=True)
+            id, sl.AppendTableDataRequest(frame=frame, end_of_data=True)
         )
 
         # TODO: Remove mock when service supports flushing
@@ -338,41 +339,41 @@ class TestDataFrame:
             )
 
             assert response.total_row_count == 3
-            assert response.frame == DataFrame(
+            assert response.frame == sl.DataFrame(
                 columns=["index", "value"],
                 data=[["3", "1.1"], ["1", "3.3"], ["2", None]],
             )
 
     def test__write_invalid_data__raises(
-        self, client: DataFrameClient, test_tables: List[str]
+        self, client: sl.DataFrameClient, test_tables: List[str]
     ):
         id = test_tables[0]
 
-        frame = DataFrame(
+        frame = sl.DataFrame(
             columns=["index", "non_existent_column"],
             data=[["1", "2"], ["2", "2"], ["3", "3"]],
         )
 
-        with pytest.raises(ApiException, match="400 Bad Request"):
-            client.append_table_data(id, AppendTableDataRequest(frame=frame))
+        with pytest.raises(sl.ApiException, match="400 Bad Request"):
+            client.append_table_data(id, sl.AppendTableDataRequest(frame=frame))
 
-    def test__query_table_data__sorts(self, client: DataFrameClient, create_table):
+    def test__query_table_data__sorts(self, client: sl.DataFrameClient, create_table):
         id = create_table(
-            CreateTableRequest(
+            sl.CreateTableRequest(
                 columns=[
                     int_index_column,
-                    Column(name="col1", data_type=DataType.Float64),
-                    Column(name="col2", data_type=DataType.Float64),
+                    sl.Column(name="col1", data_type=sl.DataFrameDataType.Float64),
+                    sl.Column(name="col2", data_type=sl.DataFrameDataType.Float64),
                 ]
             )
         )
 
-        frame = DataFrame(
+        frame = sl.DataFrame(
             data=[["1", "2.5", "6.5"], ["2", "1.5", "5.5"], ["3", "2.5", "7.5"]],
         )
 
         client.append_table_data(
-            id, AppendTableDataRequest(frame=frame, end_of_data=True)
+            id, sl.AppendTableDataRequest(frame=frame, end_of_data=True)
         )
 
         # TODO: Remove mock when service supports flushing
@@ -406,10 +407,10 @@ class TestDataFrame:
 
             response = client.query_table_data(
                 id,
-                QueryTableDataRequest(
+                sl.QueryTableDataRequest(
                     order_by=[
-                        ColumnOrderBy(column="col1"),
-                        ColumnOrderBy(column="col2", descending=True),
+                        sl.ColumnOrderBy(column="col1"),
+                        sl.ColumnOrderBy(column="col2", descending=True),
                     ],
                 ),
             )
@@ -421,23 +422,23 @@ class TestDataFrame:
                 ["1", "2.5", "6.5"],
             ]
 
-    def test__query_table_data__filters(self, client: DataFrameClient, create_table):
+    def test__query_table_data__filters(self, client: sl.DataFrameClient, create_table):
         id = create_table(
-            CreateTableRequest(
+            sl.CreateTableRequest(
                 columns=[
                     int_index_column,
-                    Column(name="float", data_type=DataType.Float64),
-                    Column(
+                    sl.Column(name="float", data_type=sl.DataFrameDataType.Float64),
+                    sl.Column(
                         name="int",
-                        data_type=DataType.Int64,
-                        column_type=ColumnType.Nullable,
+                        data_type=sl.DataFrameDataType.Int64,
+                        column_type=sl.ColumnType.Nullable,
                     ),
-                    Column(name="string", data_type=DataType.String),
+                    sl.Column(name="string", data_type=sl.DataType.String),
                 ]
             )
         )
 
-        frame = DataFrame(
+        frame = sl.DataFrame(
             data=[
                 ["1", "1.5", "10", "dog"],
                 ["2", "2.5", None, "cat"],
@@ -447,7 +448,7 @@ class TestDataFrame:
         )
 
         client.append_table_data(
-            id, AppendTableDataRequest(frame=frame, end_of_data=True)
+            id, sl.AppendTableDataRequest(frame=frame, end_of_data=True)
         )
 
         # TODO: Remove mock when service supports flushing
@@ -490,21 +491,21 @@ class TestDataFrame:
 
             response = client.query_table_data(
                 id,
-                QueryTableDataRequest(
+                sl.QueryTableDataRequest(
                     filters=[
-                        ColumnFilter(
+                        sl.ColumnFilter(
                             column="float",
-                            operation=FilterOperation.GreaterThan,
+                            operation=sl.FilterOperation.GreaterThan,
                             value="1.5",
                         ),
-                        ColumnFilter(
+                        sl.ColumnFilter(
                             column="int",
-                            operation=FilterOperation.NotEquals,
+                            operation=sl.FilterOperation.NotEquals,
                             value=None,
                         ),
-                        ColumnFilter(
+                        sl.ColumnFilter(
                             column="string",
-                            operation=FilterOperation.NotContains,
+                            operation=sl.FilterOperation.NotContains,
                             value="bun",
                         ),
                     ]
@@ -513,18 +514,18 @@ class TestDataFrame:
 
             assert response.frame.data == [["4", "4.5", "40", "cow"]]
 
-    def test__query_decimated_data__works(self, client: DataFrameClient, create_table):
+    def test__query_decimated_data__works(self, client: sl.DataFrameClient, create_table):
         id = create_table(
-            CreateTableRequest(
+            sl.CreateTableRequest(
                 columns=[
                     int_index_column,
-                    Column(name="col1", data_type=DataType.Float64),
-                    Column(name="col2", data_type=DataType.Float64),
+                    sl.Column(name="col1", data_type=sl.DataFrameDataType.Float64),
+                    sl.Column(name="col2", data_type=sl.DataFrameDataType.Float64),
                 ]
             )
         )
 
-        frame = DataFrame(
+        frame = sl.DataFrame(
             data=[
                 ["1", "1.5", "3.5"],
                 ["2", "2.5", "2.5"],
@@ -534,7 +535,7 @@ class TestDataFrame:
         )
 
         client.append_table_data(
-            id, AppendTableDataRequest(frame=frame, end_of_data=True)
+            id, sl.AppendTableDataRequest(frame=frame, end_of_data=True)
         )
 
         # TODO: Remove mock when service supports flushing
@@ -564,35 +565,35 @@ class TestDataFrame:
 
             response = client.query_decimated_data(
                 id,
-                QueryDecimatedDataRequest(
-                    decimation=DecimationOptions(
+                sl.QueryDecimatedDataRequest(
+                    decimation=sl.DecimationOptions(
                         x_column="index",
                         y_columns=["col1"],
                         intervals=1,
-                        method=DecimationMethod.MaxMin,
+                        method=sl.DecimationMethod.MaxMin,
                     )
                 ),
             )
 
             assert response.frame.data == [["1", "1.5", "3.5"], ["4", "4.5", "4.5"]]
 
-    def test__export_table_data__works(self, client: DataFrameClient, create_table):
+    def test__export_table_data__works(self, client: sl.DataFrameClient, create_table):
         id = create_table(
-            CreateTableRequest(
+            sl.CreateTableRequest(
                 columns=[
                     int_index_column,
-                    Column(name="col1", data_type=DataType.Float64),
-                    Column(name="col2", data_type=DataType.Float64),
+                    sl.Column(name="col1", data_type=sl.DataFrameDataType.Float64),
+                    sl.Column(name="col2", data_type=sl.DataFrameDataType.Float64),
                 ]
             )
         )
 
-        frame = DataFrame(
+        frame = sl.DataFrame(
             data=[["1", "2.5", "6.5"], ["2", "1.5", "5.5"], ["3", "2.5", "7.5"]],
         )
 
         client.append_table_data(
-            id, AppendTableDataRequest(frame=frame, end_of_data=True)
+            id, sl.AppendTableDataRequest(frame=frame, end_of_data=True)
         )
 
         # TODO: Remove mock when service supports flushing
@@ -606,7 +607,7 @@ class TestDataFrame:
 
             response = client.export_table_data(
                 id,
-                ExportTableDataRequest(response_format=ExportFormat.CSV),
+                sl.ExportTableDataRequest(response_format=sl.ExportFormat.CSV),
             )
 
             assert (
